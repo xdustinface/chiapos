@@ -150,7 +150,7 @@ class Encoding {
         size_t err = FSE_decompress_usingDTable(out, numDeltas, inp, inpsize, DT_MEMO[R]);
 
         if(FSE_isError(err)) {
-            throw FSE_getErrorName(err);
+            throw std::runtime_error(FSE_getErrorName(err));
         }
 
         deltas.assign((unsigned char *) out, ((unsigned char *) out) + numDeltas);
