@@ -27,16 +27,11 @@
 // use tools/disk.gnuplot to generate a plot
 #define ENABLE_LOGGING 0
 
-using namespace std::chrono_literals; // for operator""min;
-
 #include "chia_filesystem.hpp"
 
-#include "./bits.hpp"
-#include "./util.hpp"
+#include "bits.hpp"
+#include "util.hpp"
 #include "bitfield.hpp"
-
-constexpr uint64_t write_cache = 1024 * 1024;
-constexpr uint64_t read_ahead = 1024 * 1024;
 
 struct Disk {
     virtual uint8_t const* Read(uint64_t begin, uint64_t length) = 0;
@@ -54,170 +49,32 @@ struct Disk {
 
 enum class op_t : int { read, write};
 
-void disk_log(fs::path const& filename, op_t const op, uint64_t offset, uint64_t length)
-{
-    static std::mutex m;
-    static std::unordered_map<std::string, int> file_index;
-    static auto const start_time = std::chrono::steady_clock::now();
-    static int next_file = 0;
-
-    auto const timestamp = std::chrono::steady_clock::now() - start_time;
-
-    int fd = ::open("disk.log", O_WRONLY | O_CREAT | O_APPEND, 0755);
-
-    std::unique_lock<std::mutex> l(m);
-
-    char buffer[512];
-
-    int const index = [&] {
-        auto it = file_index.find(filename.string());
-        if (it != file_index.end()) return it->second;
-        file_index[filename.string()] = next_file;
-
-        int const len = std::snprintf(buffer, sizeof(buffer)
-            , "# %d %s\n", next_file, filename.string().c_str());
-        ::write(fd, buffer, len);
-        return next_file++;
-    }();
-
-    // timestamp (ms), start-offset, end-offset, operation (0 = read, 1 = write), file_index
-    int const len = std::snprintf(buffer, sizeof(buffer)
-        , "%" PRId64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\t%d\n"
-        , std::chrono::duration_cast<std::chrono::milliseconds>(timestamp).count()
-        , offset
-        , offset + length
-        , int(op)
-        , index);
-    ::write(fd, buffer, len);
-    ::close(fd);
-}
+void disk_log(fs::path const& filename, op_t const op, uint64_t offset, uint64_t length);
 #endif
 
 struct FileDisk {
-    explicit FileDisk(const fs::path &filename)
-    {
-        filename_ = filename;
-        Open(writeFlag);
-    }
+    explicit FileDisk(const fs::path &filename);
 
-    void Open(uint8_t flags = 0)
-    {
-        // if the file is already open, don't do anything
-        if (f_) return;
+    void Open(uint8_t flags = 0);
 
-        // Opens the file for reading and writing
-        do {
-#ifdef _WIN32
-            f_ = ::_wfopen(filename_.c_str(), (flags & writeFlag) ? L"w+b" : L"r+b");
-#else
-            f_ = ::fopen(filename_.c_str(), (flags & writeFlag) ? "w+b" : "r+b");
-#endif
-            if (f_ == nullptr) {
-                std::string error_message =
-                    "Could not open " + filename_.string() + ": " + ::strerror(errno) + ".";
-                if (flags & retryOpenFlag) {
-                    Util::Log(error_message + " Retrying in five minutes.\n");
-                    std::this_thread::sleep_for(5min);
-                } else {
-                    throw InvalidValueException(error_message);
-                }
-            }
-        } while (f_ == nullptr);
-    }
-
-    FileDisk(FileDisk &&fd)
-    {
-        filename_ = std::move(fd.filename_);
-        f_ = fd.f_;
-        fd.f_ = nullptr;
-    }
+    FileDisk(FileDisk &&fd);
 
     FileDisk(const FileDisk &) = delete;
     FileDisk &operator=(const FileDisk &) = delete;
 
-    void Close()
-    {
-        if (f_ == nullptr) return;
-        ::fclose(f_);
-        f_ = nullptr;
-        readPos = 0;
-        writePos = 0;
-    }
+    void Close();
 
-    ~FileDisk() { Close(); }
+    ~FileDisk();
 
-    void Read(uint64_t begin, uint8_t *memcache, uint64_t length)
-    {
-        Open(retryOpenFlag);
-#if ENABLE_LOGGING
-        disk_log(filename_, op_t::read, begin, length);
-#endif
-        // Seek, read, and replace into memcache
-        uint64_t amtread;
-        do {
-            if ((!bReading) || (begin != readPos)) {
-#ifdef _WIN32
-                _fseeki64(f_, begin, SEEK_SET);
-#else
-                // fseek() takes a long as offset, make sure it's wide enough
-                static_assert(sizeof(long) >= sizeof(begin));
-                ::fseek(f_, begin, SEEK_SET);
-#endif
-                bReading = true;
-            }
-            amtread = ::fread(reinterpret_cast<char *>(memcache), sizeof(uint8_t), length, f_);
-            readPos = begin + amtread;
-            if (amtread != length) {
-                Util::Log(("Only read %s of %s bytes at offset %s from %s with length %s. "
-                          "Error %s. Retrying in five minutes.\n"), amtread, length, begin,
-                                                                    filename_, writeMax, ferror(f_));
-                std::this_thread::sleep_for(5min);
-            }
-        } while (amtread != length);
-    }
+    void Read(uint64_t begin, uint8_t *memcache, uint64_t length);
 
-    void Write(uint64_t begin, const uint8_t *memcache, uint64_t length)
-    {
-        Open(writeFlag | retryOpenFlag);
-#if ENABLE_LOGGING
-        disk_log(filename_, op_t::write, begin, length);
-#endif
-        // Seek and write from memcache
-        uint64_t amtwritten;
-        do {
-            if ((bReading) || (begin != writePos)) {
-#ifdef _WIN32
-                _fseeki64(f_, begin, SEEK_SET);
-#else
-                // fseek() takes a long as offset, make sure it's wide enough
-                static_assert(sizeof(long) >= sizeof(begin));
-                ::fseek(f_, begin, SEEK_SET);
-#endif
-                bReading = false;
-            }
-            amtwritten =
-                ::fwrite(reinterpret_cast<const char *>(memcache), sizeof(uint8_t), length, f_);
-            writePos = begin + amtwritten;
-            if (writePos > writeMax)
-                writeMax = writePos;
-            if (amtwritten != length) {
-                Util::Log(("Only wrote %s of %s bytes at offset %s to %s with length %s. "
-                           "Error %s. Retrying in five minutes.\n"), amtwritten, length, begin,
-                          filename_, writeMax, ferror(f_));
-                std::this_thread::sleep_for(5min);
-            }
-        } while (amtwritten != length);
-    }
+    void Write(uint64_t begin, const uint8_t *memcache, uint64_t length);
 
-    std::string GetFileName() { return filename_.string(); }
+    std::string GetFileName();
 
-    uint64_t GetWriteMax() const noexcept { return writeMax; }
+    uint64_t GetWriteMax() const noexcept;
 
-    void Truncate(uint64_t new_size)
-    {
-        Close();
-        fs::resize_file(filename_, new_size);
-    }
+    void Truncate(uint64_t new_size);
 
 private:
 
@@ -235,124 +92,25 @@ private:
 
 struct BufferedDisk : Disk
 {
-    BufferedDisk(FileDisk* disk, uint64_t file_size) : disk_(disk), file_size_(file_size) {}
+    BufferedDisk(FileDisk* disk, uint64_t file_size);
 
-    uint8_t const* Read(uint64_t begin, uint64_t length) override
-    {
-        assert(length < read_ahead);
-        NeedReadCache();
-        // all allocations need 7 bytes head-room, since
-        // SliceInt64FromBytes() may overrun by 7 bytes
-        if (read_buffer_start_ <= begin
-            && read_buffer_start_ + read_buffer_size_ >= begin + length
-            && read_buffer_start_ + read_ahead >= begin + length + 7)
-        {
-            // if the read is entirely inside the buffer, just return it
-            return read_buffer_.get() + (begin - read_buffer_start_);
-        }
-        else if (begin >= read_buffer_start_ || begin == 0 || read_buffer_start_ == std::uint64_t(-1)) {
+    uint8_t const* Read(uint64_t begin, uint64_t length) override;
 
-            // if the read is beyond the current buffer (i.e.
-            // forward-sequential) move the buffer forward and read the next
-            // buffer-capacity number of bytes.
-            // this is also the case we enter the first time we perform a read,
-            // where we haven't read anything into the buffer yet. Note that
-            // begin == 0 won't reliably detect that case, sinec we may have
-            // discarded the first entry and start at some low offset but still
-            // greater than 0
-            read_buffer_start_ = begin;
-            uint64_t const amount_to_read = std::min(file_size_ - read_buffer_start_, read_ahead);
-            disk_->Read(begin, read_buffer_.get(), amount_to_read);
-            read_buffer_size_ = amount_to_read;
-            return read_buffer_.get();
-        }
-        else {
-            // ideally this won't happen
-            Util::Log("Disk read position regressed. It's optimized for forward scans."
-                      " Performance may suffer.\n");
-            Util::Log(" read-offset: %s read-length: %s file-size: %s "
-                      "read-buffer: [%s,%s] file: %s\n", begin, length, file_size_,
-                                                         read_buffer_start_, read_buffer_size_,
-                                                    disk_->GetFileName());
-            static uint8_t temp[128];
-            // all allocations need 7 bytes head-room, since
-            // SliceInt64FromBytes() may overrun by 7 bytes
-            assert(length <= sizeof(temp) - 7);
+    void Write(uint64_t const begin, const uint8_t *memcache, uint64_t const length) override;
 
-            // if we're going backwards, don't wipe out the cache. We assume
-            // forward sequential access
-            disk_->Read(begin, temp, length);
-            return temp;
-        }
-    }
+    void Truncate(uint64_t const new_size) override;
 
-    void Write(uint64_t const begin, const uint8_t *memcache, uint64_t const length) override
-    {
-        NeedWriteCache();
-        if (begin == write_buffer_start_ + write_buffer_size_) {
-            if (write_buffer_size_ + length <= write_cache) {
-                ::memcpy(write_buffer_.get() + write_buffer_size_, memcache, length);
-                write_buffer_size_ += length;
-                return;
-            }
-            FlushCache();
-        }
+    std::string GetFileName() override;
 
-        if (write_buffer_size_ == 0 && write_cache >= length) {
-            write_buffer_start_ = begin;
-            ::memcpy(write_buffer_.get() + write_buffer_size_, memcache, length);
-            write_buffer_size_ = length;
-            return;
-        }
+    void FreeMemory() override;
 
-        disk_->Write(begin, memcache, length);
-    }
-
-    void Truncate(uint64_t const new_size) override
-    {
-        FlushCache();
-        disk_->Truncate(new_size);
-        file_size_ = new_size;
-        FreeMemory();
-    }
-
-    std::string GetFileName() override { return disk_->GetFileName(); }
-
-    void FreeMemory() override
-    {
-        FlushCache();
-
-        read_buffer_.reset();
-        write_buffer_.reset();
-        read_buffer_size_ = 0;
-        write_buffer_size_ = 0;
-    }
-
-    void FlushCache()
-    {
-        if (write_buffer_size_ == 0) return;
-
-        disk_->Write(write_buffer_start_, write_buffer_.get(), write_buffer_size_);
-        write_buffer_size_ = 0;
-    }
+    void FlushCache();
 
 private:
 
-    void NeedReadCache()
-    {
-        if (read_buffer_) return;
-        read_buffer_.reset(new uint8_t[read_ahead]);
-        read_buffer_start_ = -1;
-        read_buffer_size_ = 0;
-    }
+    void NeedReadCache();
 
-    void NeedWriteCache()
-    {
-        if (write_buffer_) return;
-        write_buffer_.reset(new uint8_t[write_cache]);
-        write_buffer_start_ = -1;
-        write_buffer_size_ = 0;
-    }
+    void NeedWriteCache();
 
     FileDisk* disk_;
 
@@ -372,73 +130,14 @@ private:
 
 struct FilteredDisk : Disk
 {
-    FilteredDisk(BufferedDisk underlying, bitfield filter, int entry_size)
-        : filter_(std::move(filter))
-        , underlying_(std::move(underlying))
-        , entry_size_(entry_size)
-    {
-        assert(entry_size_ > 0);
-        while (!filter_.get(last_idx_)) {
-            last_physical_ += entry_size_;
-            ++last_idx_;
-        }
-        assert(filter_.get(last_idx_));
-        assert(last_physical_ == last_idx_ * entry_size_);
-    }
+    FilteredDisk(BufferedDisk underlying, bitfield filter, int entry_size);
 
-    uint8_t const* Read(uint64_t begin, uint64_t length) override
-    {
-        // we only support a single read-pass with no going backwards
-        assert(begin >= last_logical_);
-        assert((begin % entry_size_) == 0);
-        assert(filter_.get(last_idx_));
-        assert(last_physical_ == last_idx_ * entry_size_);
+    uint8_t const* Read(uint64_t begin, uint64_t length) override;
 
-        if (begin > last_logical_) {
-            // last_idx_ et.al. always points to an entry we have (i.e. the bit
-            // is set). So when we advance from there, we always take at least
-            // one step on all counters.
-            last_logical_ += entry_size_;
-            last_physical_ += entry_size_;
-            ++last_idx_;
-
-            while (begin > last_logical_)
-            {
-                if (filter_.get(last_idx_)) {
-                    last_logical_ += entry_size_;
-                }
-                last_physical_ += entry_size_;
-                ++last_idx_;
-            }
-
-            while (!filter_.get(last_idx_)) {
-                last_physical_ += entry_size_;
-                ++last_idx_;
-            }
-        }
-
-        assert(filter_.get(last_idx_));
-        assert(last_physical_ == last_idx_ * entry_size_);
-        assert(begin == last_logical_);
-        return underlying_.Read(last_physical_, length);
-    }
-
-    void Write(uint64_t begin, const uint8_t *memcache, uint64_t length) override
-    {
-        assert(false);
-        throw std::runtime_error("Write() called on read-only disk abstraction");
-    }
-    void Truncate(uint64_t new_size) override
-    {
-        underlying_.Truncate(new_size);
-        if (new_size == 0) filter_.free_memory();
-    }
-    std::string GetFileName() override { return underlying_.GetFileName(); }
-    void FreeMemory() override
-    {
-        filter_.free_memory();
-        underlying_.FreeMemory();
-    }
+    void Write(uint64_t begin, const uint8_t *memcache, uint64_t length) override;
+    void Truncate(uint64_t new_size) override;
+    std::string GetFileName() override;
+    void FreeMemory() override;
 
 private:
 

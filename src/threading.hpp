@@ -57,7 +57,7 @@ namespace Sem {
         sem_init(&ret, 0, 0);
         return ret;
     }
-    inline void Destroy(sem_t& sem) {
+    static void Destroy(sem_t& sem) {
         sem_close(&sem);
     }
 #endif

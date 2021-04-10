@@ -12,19 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_CPP_PROGRESS_HPP_
-#define SRC_CPP_PROGRESS_HPP_
-
-#include <functional>
-
 #include <util.hpp>
+#include <progress.hpp>
 
-typedef std::function<void(int,int,int)> ProgressCallbackFunc;
-
-static ProgressCallbackFunc progressCallbackDefault{[](int phase, int n, int max_n){
+void progress(int phase, int n, int max_n)
+{
     float p = (100.0 / 4) * ((phase - 1.0) + (1.0 * n / max_n));
-    Util::Log("Progress: %s%%\n", static_cast<int64_t>(p));
-}};
-static ProgressCallbackFunc progressCallbackNone{[](int, int, int){}};
-
-#endif  // SRC_CPP_PROGRESS_HPP
+    Util::Log("Progress: %%%\n", static_cast<int64_t>(p));
+}

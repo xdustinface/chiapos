@@ -2,6 +2,8 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.14 FATAL_ERROR)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+project(chiapos C CXX ASM)
+
 set(UTIL_LOGS_ENABLED ON CACHE BOOL "Enable Util::Log() calls")
 
 if (UTIL_LOGS_ENABLED)
@@ -17,7 +19,7 @@ if(CCACHE_PROGRAM)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
 endif()
 
-project(chiapos C CXX ASM)
+find_package(Threads REQUIRED)
 
 # CMake 3.14+
 include(FetchContent)
@@ -50,20 +52,45 @@ set(FSE_FILES
     ${FSE_LIB}/entropy_common.c
     ${FSE_LIB}/hist.c
 )
-
-include_directories(
-  ${INCLUDE_DIRECTORIES}
-  ${CMAKE_CURRENT_SOURCE_DIR}/lib/include
-  ${cxxopts_SOURCE_DIR}/include
-  ${gulrak_SOURCE_DIR}/include/ghc
-  ${CMAKE_CURRENT_SOURCE_DIR}/../lib/FiniteStateEntropy/lib
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
-  ${CMAKE_CURRENT_SOURCE_DIR}/test
-  )
-
 add_library(fse ${FSE_FILES})
 
+set(CHIAPOS_SOURCE_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/b17phase2.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/b17phase3.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/b17phase4.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/b17sort_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/bitfield.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/bitfield_index.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/calculate_bucket.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/disk.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/encoding.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/entry_sizes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/util.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/phase1.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/phase2.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/phase3.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/phase4.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plotter_disk.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/progress.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/prover_disk.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/quicksort.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sort_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/uniformsort.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/verifier.cpp
+    )
+
+set(CHIAPOS_INCLUDE_DIRECTORIES
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/include
+    ${cxxopts_SOURCE_DIR}/include
+    ${gulrak_SOURCE_DIR}/include/ghc
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/test
+    ${CMAKE_CURRENT_SOURCE_DIR}/uint128_t
+    )
+
 IF (MSVC)
+
 IF (CMAKE_BUILD_TYPE STREQUAL "RELEASE")
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /O2 /Oy")
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /O2 /Oy")
@@ -136,51 +163,37 @@ set(BLAKE3_SRC
 )
 ENDIF()
 
-pybind11_add_module(chiapos ${CMAKE_CURRENT_SOURCE_DIR}/python-bindings/chiapos.cpp src/chacha8.c ${BLAKE3_SRC})
+add_library(crypto STATIC ${BLAKE3_SRC} src/chacha8.c)
 
-add_executable(ProofOfSpace
-    src/cli.cpp
-    src/chacha8.c
-    ${BLAKE3_SRC}
-)
+set(CHIAPOS_LIB_NAME ${PROJECT_NAME}-cpp)
+add_library(${CHIAPOS_LIB_NAME} STATIC ${CHIAPOS_SOURCE_FILES})
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${CHIAPOS_LIB_NAME})
+include_directories(${CHIAPOS_INCLUDE_DIRECTORIES})
 
-add_executable(RunTests
-    tests/test-main.cpp
-    tests/test.cpp
-    src/chacha8.c
-    ${BLAKE3_SRC}
-)
-
-find_package(Threads REQUIRED)
-
-add_library(uint128 STATIC uint128_t/uint128_t.cpp)
-target_include_directories(uint128 PUBLIC uint128_t)
+pybind11_add_module(chiapos ${CMAKE_CURRENT_SOURCE_DIR}/python-bindings/chiapos.cpp)
+add_executable(ProofOfSpace src/cli.cpp)
+add_executable(RunTests tests/test-main.cpp tests/test.cpp)
 
 target_compile_features(fse PUBLIC cxx_std_17)
 target_compile_features(chiapos PUBLIC cxx_std_17)
 target_compile_features(RunTests PUBLIC cxx_std_17)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  target_link_libraries(chiapos PRIVATE fse Threads::Threads)
-  target_link_libraries(ProofOfSpace fse Threads::Threads)
-  target_link_libraries(RunTests fse Threads::Threads)
+    target_link_libraries(${CHIAPOS_LIB_NAME} PRIVATE crypto fse Threads::Threads)
 elseif (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
-  target_link_libraries(chiapos PRIVATE fse Threads::Threads)
-  target_link_libraries(ProofOfSpace fse Threads::Threads)
-  target_link_libraries(RunTests fse Threads::Threads)
+    target_link_libraries(${CHIAPOS_LIB_NAME} PRIVATE crypto fse Threads::Threads)
 elseif (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-  target_link_libraries(chiapos PRIVATE fse Threads::Threads)
-  target_link_libraries(ProofOfSpace fse Threads::Threads)
-  target_link_libraries(RunTests fse Threads::Threads)
+    target_link_libraries(${CHIAPOS_LIB_NAME} PRIVATE crypto fse Threads::Threads)
 elseif (MSVC)
-  target_link_libraries(chiapos PRIVATE fse Threads::Threads uint128)
-  target_link_libraries(ProofOfSpace fse Threads::Threads uint128)
-  target_link_libraries(RunTests fse Threads::Threads uint128)
+    add_library(uint128 STATIC uint128_t/uint128_t.cpp)
+    target_link_libraries(${CHIAPOS_LIB_NAME} PRIVATE crypto fse Threads::Threads uint128)
 else()
-  target_link_libraries(chiapos PRIVATE fse stdc++fs Threads::Threads)
-  target_link_libraries(ProofOfSpace fse stdc++fs Threads::Threads)
-  target_link_libraries(RunTests fse stdc++fs Threads::Threads)
+    target_link_libraries(${CHIAPOS_LIB_NAME} PRIVATE crypto fse Threads::Threads stdc++fs)
 endif()
+
+target_link_libraries(chiapos PRIVATE ${CHIAPOS_LIB_NAME})
+target_link_libraries(ProofOfSpace PRIVATE ${CHIAPOS_LIB_NAME})
+target_link_libraries(RunTests PRIVATE ${CHIAPOS_LIB_NAME})
 
 enable_testing()
 add_test(NAME RunTests COMMAND RunTests)

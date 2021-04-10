@@ -16,13 +16,16 @@
 
 #include <set>
 
-#include "../lib/include/catch.hpp"
-#include "../lib/include/picosha2.hpp"
+#include <bitfield_index.hpp>
 #include "calculate_bucket.hpp"
 #include "disk.hpp"
+#include "include/catch.hpp"
+#include "include/picosha2.hpp"
 #include "plotter_disk.hpp"
 #include "prover_disk.hpp"
+#include <quicksort.hpp>
 #include "sort_manager.hpp"
+#include <uniformsort.hpp>
 #include "verifier.hpp"
 
 using namespace std;
