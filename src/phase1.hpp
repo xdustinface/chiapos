@@ -597,7 +597,7 @@ std::vector<uint64_t> RunPhase1(
     uint32_t const stripe_size,
     uint8_t const num_threads,
     bool const enable_bitfield,
-    bool const show_progress)
+    const ProgressCallbackFunc& progressCallback = progressCallbackNone)
 {
     Util::Log("Computing table 1\n");
     globals.stripe_size = stripe_size;
@@ -754,9 +754,7 @@ std::vector<uint64_t> RunPhase1(
 
         prevtableentries = globals.right_writer_count;
         Util::LogElapsed("Forward propagation table", table_timer);
-        if (show_progress) {
-            progress(1, table_index, 6);
-        }
+        progressCallback(1, table_index, 6);
     }
     table_sizes[0] = 0;
     globals.R_sort_manager.reset();

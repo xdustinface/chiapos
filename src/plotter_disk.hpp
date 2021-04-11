@@ -71,7 +71,7 @@ public:
         uint64_t stripe_size_input = 0,
         uint8_t num_threads_input = 0,
         bool nobitfield = false,
-        bool show_progress = false)
+        const ProgressCallbackFunc& progressCallback = progressCallbackNone)
     {
         // Increases the open file limit, we will open a lot of files.
 #ifndef _WIN32
@@ -220,7 +220,7 @@ public:
                 stripe_size,
                 num_threads,
                 !nobitfield,
-                show_progress);
+                progressCallback);
             Util::LogElapsed("Phase 1 completed", p1);
 
             uint64_t finalsize=0;
@@ -245,7 +245,7 @@ public:
                     memory_size,
                     num_buckets,
                     log_num_buckets,
-                    show_progress);
+                    progressCallback);
                 Util::LogElapsed("Phase 2 completed", p2);
 
                 // Now we open a new file, where the final contents of the plot will be stored.
@@ -267,13 +267,13 @@ public:
                     memory_size,
                     num_buckets,
                     log_num_buckets,
-                    show_progress);
+                    progressCallback);
                 Util::LogElapsed("Phase 3 completed", p3);
 
                 Util::Log("\nStarting phase 4/4: Write Checkpoint tables into %s ... %s\n",
                           tmp_2_filename, Util::GetLocalTimeString());
                 Timer p4;
-                b17RunPhase4(k, k + 1, tmp2_disk, res, show_progress, 16);
+                b17RunPhase4(k, k + 1, tmp2_disk, res, 16, progressCallback);
                 Util::LogElapsed("Phase 4 completed", p4);
                 finalsize = res.final_table_begin_pointers[11];
             }
@@ -291,7 +291,7 @@ public:
                     memory_size,
                     num_buckets,
                     log_num_buckets,
-                    show_progress);
+                    progressCallback);
                 Util::LogElapsed("Phase 2 completed", p2);
 
                 // Now we open a new file, where the final contents of the plot will be stored.
@@ -311,13 +311,13 @@ public:
                     memory_size,
                     num_buckets,
                     log_num_buckets,
-                    show_progress);
+                    progressCallback);
                 Util::LogElapsed("Phase 3 completed", p3);
 
                 Util::Log("\nStarting phase 4/4: Write Checkpoint tables into %s ... %s\n",
                           tmp_2_filename, Util::GetLocalTimeString());
                 Timer p4;
-                RunPhase4(k, k + 1, tmp2_disk, res, show_progress, 16);
+                RunPhase4(k, k + 1, tmp2_disk, res, 16, progressCallback);
                 Util::LogElapsed("Phase 4 completed", p4);
                 finalsize = res.final_table_begin_pointers[11];
             }

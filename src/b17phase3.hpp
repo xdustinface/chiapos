@@ -59,7 +59,7 @@ b17Phase3Results b17RunPhase3(
     uint64_t memory_size,
     uint32_t num_buckets,
     uint32_t log_num_buckets,
-    const bool show_progress)
+    const ProgressCallbackFunc& progressCallback = progressCallbackNone)
 {
     uint8_t pos_size = k;
     uint8_t line_point_size = 2 * k - 1;
@@ -451,7 +451,7 @@ b17Phase3Results b17RunPhase3(
         final_table_writer += 8;
 
         Util::LogElapsed("Total compress table", table_timer);
-        if (show_progress) { progress(3, table_index, 6); }
+        progressCallback(3, table_index, 6);
     }
 
     L_sort_manager->ChangeMemory(memory, memory_size);

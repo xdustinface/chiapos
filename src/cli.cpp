@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) try {
                 num_stripes,
                 num_threads,
                 nobitfield,
-                show_progress);
+                show_progress ? progressCallbackDefault : progressCallbackNone);
     } else if (operation == "prove") {
         if (argc < 3) {
             HelpAndQuit(options);

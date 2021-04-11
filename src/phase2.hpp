@@ -50,7 +50,7 @@ Phase2Results RunPhase2(
     uint64_t memory_size,
     uint32_t const num_buckets,
     uint32_t const log_num_buckets,
-    bool const show_progress)
+    const ProgressCallbackFunc& progressCallback = progressCallbackNone)
 {
     // After pruning each table will have 0.865 * 2^k or fewer entries on
     // average
@@ -245,9 +245,7 @@ Phase2Results RunPhase2(
         if (table_index != 7) {
             tmp_1_disks[table_index].Truncate(0);
         }
-        if (show_progress) {
-            progress(2, 8 - table_index, 6);
-        }
+        progressCallback(2, 8 - table_index, 6);
     }
 
     // lazy-compact table 1 based on current_bitfield
