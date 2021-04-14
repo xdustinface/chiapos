@@ -418,9 +418,7 @@ private:
         plot_Disk.Write(write_pos, (id), kIdLen);
         write_pos += kIdLen;
 
-        uint8_t k_buffer[1];
-        k_buffer[0] = k;
-        plot_Disk.Write(write_pos, (k_buffer), 1);
+        plot_Disk.Write(write_pos, &k, 1);
         write_pos += 1;
 
         uint8_t size_buffer[2];
