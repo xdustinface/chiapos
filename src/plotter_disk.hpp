@@ -441,10 +441,8 @@ private:
         plot_Disk.Write(write_pos, (pointers), 10 * 8);
         write_pos += 10 * 8;
 
-        uint32_t bytes_written =
-            header_text.size() + kIdLen + 1 + 2 + kFormatDescription.size() + 2 + memo_len + 10 * 8;
-        Util::Log("Wrote: %s\n", bytes_written);
-        return bytes_written;
+        Util::Log("Wrote: %s\n", write_pos);
+        return write_pos;
     }
 };
 
