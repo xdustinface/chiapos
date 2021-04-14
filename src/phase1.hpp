@@ -47,6 +47,8 @@
 #include "util.hpp"
 #include "progress.hpp"
 
+typedef std::vector<uint64_t> Phase1Results;
+
 struct THREADDATA {
     int index;
     Sem::type* mine;
@@ -585,7 +587,7 @@ void* F1thread(int const index, uint8_t const k, const uint8_t* id, std::mutex* 
 // proofs of space in it. First, F1 is computed, which is special since it uses
 // ChaCha8, and each encryption provides multiple output values. Then, the rest of the
 // f functions are computed, and a sort on disk happens for each table.
-std::vector<uint64_t> RunPhase1(
+Phase1Results RunPhase1(
     std::vector<FileDisk>& tmp_1_disks,
     uint8_t const k,
     const uint8_t* const id,
@@ -619,7 +621,7 @@ std::vector<uint64_t> RunPhase1(
 
     // These are used for sorting on disk. The sort on disk code needs to know how
     // many elements are in each bucket.
-    std::vector<uint64_t> table_sizes = std::vector<uint64_t>(8, 0);
+    Phase1Results table_sizes = std::vector<uint64_t>(8, 0);
     std::mutex sort_manager_mutex;
 
     {
