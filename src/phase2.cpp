@@ -20,17 +20,15 @@
 #include <phase2.hpp>
 #include "progress.hpp"
 
-Phase2Results RunPhase2(
-    std::vector<FileDisk> &tmp_1_disks,
-    std::vector<uint64_t> table_sizes,
-    uint8_t const k,
-    const uint8_t *id,
-    const std::string &tmp_dirname,
-    const std::string &filename,
-    uint64_t memory_size,
-    uint32_t const num_buckets,
-    uint32_t const log_num_buckets,
-    const ProgressCallbackFunc& progressCallback)
+Phase2Results RunPhase2(std::vector<FileDisk> &tmp_1_disks,
+                        const std::vector<uint64_t>& table_sizes,
+                        const uint8_t k,
+                        const std::string &tmp_dirname,
+                        const std::string &filename,
+                        const uint64_t memory_size,
+                        const uint32_t num_buckets,
+                        const uint32_t log_num_buckets,
+                        const ProgressCallbackFunc& progressCallback)
 {
     // After pruning each table will have 0.865 * 2^k or fewer entries on
     // average

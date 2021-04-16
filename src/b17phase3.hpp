@@ -44,19 +44,17 @@ struct b17Phase3Results {
 // Converting into this format requires a few passes and sorts on disk. It also assumes that the
 // backpropagation step happened, so there will be no more dropped entries. See the design
 // document for more details on the algorithm.
-b17Phase3Results b17RunPhase3(
-    uint8_t *memory,
-    uint8_t k,
-    FileDisk &tmp2_disk /*filename*/,
-    std::vector<FileDisk> &tmp_1_disks /*plot_filename*/,
-    std::vector<uint64_t> table_sizes,
-    const uint8_t *id,
-    const std::string &tmp_dirname,
-    const std::string &filename,
-    uint32_t header_size,
-    uint64_t memory_size,
-    uint32_t num_buckets,
-    uint32_t log_num_buckets,
-    const ProgressCallbackFunc& progressCallback = progressCallbackNone);
+b17Phase3Results b17RunPhase3(uint8_t *memory,
+                             uint8_t k,
+                             FileDisk &tmp2_disk,
+                             std::vector<FileDisk> &tmp_1_disks,
+                             const std::vector<uint64_t>& table_sizes,
+                             const std::string &tmp_dirname,
+                             const std::string &filename,
+                             uint32_t header_size,
+                             uint64_t memory_size,
+                             uint32_t num_buckets,
+                             uint32_t log_num_buckets,
+                             const ProgressCallbackFunc& progressCallback = progressCallbackNone);
 
 #endif  // SRC_CPP_B17PHASE3_HPP_

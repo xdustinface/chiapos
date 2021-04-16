@@ -35,7 +35,11 @@
 // C1 (checkpoint values)
 // C2 (checkpoint values into)
 // C3 (deltas of f7s between C1 checkpoints)
-void b17RunPhase4(uint8_t k, uint8_t pos_size, FileDisk &tmp2_disk, b17Phase3Results &res,
-                  const int max_phase4_progress_updates = 16, const ProgressCallbackFunc& progressCallback = progressCallbackNone);
+void b17RunPhase4(uint8_t k,
+                  uint8_t pos_size,
+                  FileDisk &tmp2_disk,
+                  b17Phase3Results &res,
+                  int max_phase4_progress_updates = 16,
+                  const ProgressCallbackFunc& progressCallback = progressCallbackNone);
 
 #endif  // SRC_CPP_B17PHASE4_HPP_

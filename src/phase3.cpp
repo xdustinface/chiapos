@@ -83,18 +83,16 @@ void WriteParkToFile(
     final_disk.Write(writer, (uint8_t *)park_buffer, park_size_bytes);
 }
 
-Phase3Results RunPhase3(
-    uint8_t k,
-    FileDisk &tmp2_disk /*filename*/,
-    Phase2Results res2,
-    const uint8_t *id,
-    const std::string &tmp_dirname,
-    const std::string &filename,
-    uint32_t header_size,
-    uint64_t memory_size,
-    uint32_t num_buckets,
-    uint32_t log_num_buckets,
-    const ProgressCallbackFunc& progressCallback)
+Phase3Results RunPhase3(uint8_t k,
+                        FileDisk &tmp2_disk,
+                        Phase2Results& res2,
+                        const std::string &tmp_dirname,
+                        const std::string &filename,
+                        const uint32_t header_size,
+                        const uint64_t memory_size,
+                        const uint32_t num_buckets,
+                        const uint32_t log_num_buckets,
+                        const ProgressCallbackFunc& progressCallback)
 {
     uint8_t const pos_size = k;
     uint8_t const line_point_size = 2 * k - 1;

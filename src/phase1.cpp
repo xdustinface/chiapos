@@ -559,19 +559,18 @@ void F1thread(int const index, uint8_t const k, const uint8_t* id, uint8_t num_t
     }
 }
 
-Phase1Results RunPhase1(
-    std::vector<FileDisk>& tmp_1_disks,
-    uint8_t const k,
-    const uint8_t* const id,
-    const std::string& tmp_dirname,
-    const std::string& filename,
-    uint64_t const memory_size,
-    uint32_t const num_buckets,
-    uint32_t const log_num_buckets,
-    uint32_t const stripe_size,
-    uint8_t const num_threads,
-    bool const enable_bitfield,
-    const ProgressCallbackFunc& progressCallback)
+Phase1Results RunPhase1(std::vector<FileDisk>& tmp_1_disks,
+                        const uint8_t k,
+                        const uint8_t* const id,
+                        const std::string& tmp_dirname,
+                        const std::string& filename,
+                        const uint64_t memory_size,
+                        const uint32_t num_buckets,
+                        const uint32_t log_num_buckets,
+                        const uint32_t stripe_size,
+                        const uint8_t num_threads,
+                        const bool enable_bitfield,
+                        const ProgressCallbackFunc& progressCallback)
 {
     Util::Log("Computing table 1\n");
     Timer f1_start_time;

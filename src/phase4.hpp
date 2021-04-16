@@ -36,7 +36,11 @@ struct Phase3Results;
 // C1 (checkpoint values)
 // C2 (checkpoint values into)
 // C3 (deltas of f7s between C1 checkpoints)
-void RunPhase4(uint8_t k, uint8_t pos_size, FileDisk &tmp2_disk, Phase3Results &res,
-               const int max_phase4_progress_updates, const ProgressCallbackFunc& progressCallback = progressCallbackNone);
+void RunPhase4(uint8_t k,
+               uint8_t pos_size,
+               FileDisk &tmp2_disk,
+               Phase3Results &res,
+               int max_phase4_progress_updates,
+               const ProgressCallbackFunc& progressCallback = progressCallbackNone);
 
 #endif  // SRC_CPP_PHASE4_HPP_

@@ -69,17 +69,15 @@ void WriteParkToFile(
 // Converting into this format requires a few passes and sorts on disk. It also assumes that the
 // backpropagation step happened, so there will be no more dropped entries. See the design
 // document for more details on the algorithm.
-Phase3Results RunPhase3(
-    uint8_t k,
-    FileDisk &tmp2_disk /*filename*/,
-    Phase2Results res2,
-    const uint8_t *id,
-    const std::string &tmp_dirname,
-    const std::string &filename,
-    uint32_t header_size,
-    uint64_t memory_size,
-    uint32_t num_buckets,
-    uint32_t log_num_buckets,
-    const ProgressCallbackFunc& progressCallback = progressCallbackNone);
+Phase3Results RunPhase3(uint8_t k,
+                        FileDisk &tmp2_disk,
+                        Phase2Results& res2,
+                        const std::string &tmp_dirname,
+                        const std::string &filename,
+                        uint32_t header_size,
+                        uint64_t memory_size,
+                        uint32_t num_buckets,
+                        uint32_t log_num_buckets,
+                        const ProgressCallbackFunc& progressCallback = progressCallbackNone);
 
 #endif  // SRC_CPP_PHASE3_HPP_

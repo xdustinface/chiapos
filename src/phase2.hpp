@@ -37,16 +37,14 @@ struct Phase2Results
 // The purpose of backpropagate is to eliminate any dead entries that don't contribute
 // to final values in f7, to minimize disk usage. A sort on disk is applied to each table,
 // so that they are sorted by position.
-Phase2Results RunPhase2(
-    std::vector<FileDisk> &tmp_1_disks,
-    std::vector<uint64_t> table_sizes,
-    uint8_t k,
-    const uint8_t *id,
-    const std::string &tmp_dirname,
-    const std::string &filename,
-    uint64_t memory_size,
-    uint32_t const num_buckets,
-    uint32_t const log_num_buckets,
-    const ProgressCallbackFunc& progressCallback = progressCallbackNone);
+Phase2Results RunPhase2(std::vector<FileDisk> &tmp_1_disks,
+                        const std::vector<uint64_t>& table_sizes,
+                        uint8_t k,
+                        const std::string &tmp_dirname,
+                        const std::string &filename,
+                        uint64_t memory_size,
+                        uint32_t num_buckets,
+                        uint32_t log_num_buckets,
+                        const ProgressCallbackFunc& progressCallback = progressCallbackNone);
 
 #endif  // SRC_CPP_PHASE2_HPP_

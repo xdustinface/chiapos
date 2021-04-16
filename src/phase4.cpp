@@ -19,8 +19,12 @@
 #include "pos_constants.hpp"
 #include "util.hpp"
 
-void RunPhase4(uint8_t k, uint8_t pos_size, FileDisk &tmp2_disk, Phase3Results &res,
-               const int max_phase4_progress_updates, const ProgressCallbackFunc& progressCallback)
+void RunPhase4(const uint8_t k,
+               const uint8_t pos_size,
+               FileDisk &tmp2_disk,
+               Phase3Results &res,
+               const int max_phase4_progress_updates,
+               const ProgressCallbackFunc& progressCallback)
 {
     uint32_t P7_park_size = Util::ByteAlign((k + 1) * kEntriesPerPark) / 8;
     uint64_t number_of_p7_parks =
