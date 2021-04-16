@@ -196,5 +196,6 @@ void b17RunPhase4(uint8_t k, uint8_t pos_size, FileDisk &tmp2_disk, b17Phase3Res
         Util::Log("\t %s%s: 0x%X\n", i < 8 ? "P" : "C", i < 8 ? i : i - 7,
                   res.final_table_begin_pointers[i]);
     }
+    if (show_progress) { progress(4, 1, 1); }
 }
 #endif  // SRC_CPP_PHASE4_HPP

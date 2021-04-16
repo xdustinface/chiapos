@@ -284,7 +284,6 @@ int main(int argc, char *argv[]) try {
             }
         }
         Util::Log("Total success: %s/%s, %s%%\n",success, iterations, 100 * ((double)success / (double)iterations));
-        if (show_progress) { progress(4, 1, 1); }
     } else {
         Util::Log("Invalid operation. Use create/prove/verify/check\n");
     }
