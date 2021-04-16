@@ -102,7 +102,7 @@ PlotEntry GetLeftEntry(
     return left_entry;
 }
 
-void* phase1_thread(THREADDATA* ptd)
+void phase1_thread(THREADDATA* ptd)
 {
     uint64_t const right_entry_size_bytes = ptd->right_entry_size_bytes;
     uint8_t const k = ptd->k;
@@ -509,11 +509,9 @@ void* phase1_thread(THREADDATA* ptd)
         *ptd->matches += matches;
         Sem::Post(ptd->mine);
     }
-
-    return 0;
 }
 
-void* F1thread(int const index, uint8_t const k, const uint8_t* id, uint8_t num_threads, std::shared_ptr<SortManager> L_sort_manager, std::mutex* smm)
+void F1thread(int const index, uint8_t const k, const uint8_t* id, uint8_t num_threads, const std::shared_ptr<SortManager>& L_sort_manager, std::mutex* smm)
 {
     uint32_t const entry_size_bytes = 16;
     uint64_t const max_value = ((uint64_t)1 << (k));
@@ -559,8 +557,6 @@ void* F1thread(int const index, uint8_t const k, const uint8_t* id, uint8_t num_
             L_sort_manager->AddToCache(&(right_writer_buf[i * entry_size_bytes]));
         }
     }
-
-    return 0;
 }
 
 Phase1Results RunPhase1(
