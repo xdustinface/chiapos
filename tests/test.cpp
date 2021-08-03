@@ -22,6 +22,7 @@
 #include "disk.hpp"
 #include "plotter_disk.hpp"
 #include "prover_disk.hpp"
+#include "serialize.hpp"
 #include "sort_manager.hpp"
 #include "verifier.hpp"
 
@@ -143,7 +144,67 @@ TEST_CASE("SliceInt64FromBytesFull")
     CHECK(Util::SliceInt64FromBytesFull(bytes, 7, 64) == ((0x1020304050607080ull << 3) | 0b100));
     CHECK(Util::SliceInt64FromBytesFull(bytes, 8, 64) == 0x0203040506070809ull);
 }
-
+TEST_CASE("(De)Serialization")
+{
+    Serializer serializer;
+    Deserializer deserializer(serializer.Data());
+    SECTION("Basics")
+    {
+        serializer.Reset();
+        for (uint8_t i = 0; i < 0xFF; ++i) {
+            serializer.Append(i);
+        }
+        uint8_t n{0};
+        do{
+            REQUIRE(deserializer.Get<uint8_t>() == n++);
+        } while (!deserializer.End());
+        serializer.Reset();
+        deserializer.Reset();
+        float f = 0.123;
+        double d = 1.23;
+        int64_t i = -123;
+        uint64_t u = 123;
+        serializer.Append(f);
+        REQUIRE(deserializer.Get<float>() == f);
+        serializer.Append(d);
+        REQUIRE(deserializer.Get<double>() == d);
+        serializer.Append(i);
+        REQUIRE(deserializer.Get<int64_t>() == i);
+        serializer.Append(u);
+        REQUIRE(deserializer.Get<uint64_t>() == u);
+        REQUIRE(deserializer.End());
+        deserializer.Reset();
+        REQUIRE(deserializer.Get<float>() == f);
+        REQUIRE(deserializer.Get<double>() == d);
+        REQUIRE(deserializer.Get<int64_t>() == i);
+        REQUIRE(deserializer.Get<uint64_t>() == u);
+        REQUIRE(deserializer.End());
+        REQUIRE_THROWS(deserializer.Get<uint8_t>()); // Read out of bounds
+    }
+    SECTION("vector")
+    {
+        std::vector<uint64_t> vec1{1,2,3}, vec2;
+        std::vector<std::vector<uint64_t>> vec3{{1}, {2,3}, {4,5,6}}, vec4;
+        serializer.Append(vec1);
+        serializer.Append(vec2);
+        serializer.Append(vec3);
+        serializer.Append(vec4);
+        REQUIRE(deserializer.Get<std::vector<uint64_t>>() == vec1);
+        REQUIRE(deserializer.Get<std::vector<uint64_t>>() == vec2);
+        REQUIRE(deserializer.Get<std::vector<std::vector<uint64_t>>>() == vec3);
+        REQUIRE(deserializer.Get<std::vector<std::vector<uint64_t>>>() == vec4);
+        REQUIRE(deserializer.End());
+    }
+    SECTION("string")
+    {
+        std::string str1 = "123", str2;
+        serializer.Append(str1);
+        serializer.Append(str2);
+        REQUIRE(deserializer.Get<std::string>() == str1);
+        REQUIRE(deserializer.Get<std::string>() == str2);
+        REQUIRE(deserializer.End());
+    }
+}
 TEST_CASE("Util")
 {
     SECTION("Increment and decrement")
