@@ -118,6 +118,43 @@ public:
         delete[] c2_buf;
     }
 
+    // Note: This constructor presumes the input parameter are valid for the provided file and does
+    // not validate the file itself.
+    DiskProver(std::string filename, std::vector<uint8_t> memo, std::vector<uint8_t> id, uint8_t k,
+               std::vector<uint64_t> table_begin_pointers, std::vector<uint64_t> C2) :
+        filename(std::move(filename)),
+        memo(std::move(memo)),
+        id(std::move(id)),
+        k(k),
+        table_begin_pointers(std::move(table_begin_pointers)),
+        C2(std::move(C2))
+    {
+        if (this->id.size() != kIdLen) {
+            throw std::invalid_argument("Invalid id size: " + std::to_string(this->id.size()));
+        }
+        if (k < kMinPlotSize || k > kMaxPlotSize) {
+            throw std::invalid_argument("Invalid k: " + std::to_string(k));
+        }
+        if (this->table_begin_pointers.size() != nTableBeginPointerCount) {
+            throw std::invalid_argument("Invalid table_begin_pointers size: " + std::to_string(this->table_begin_pointers.size()));
+        }
+        uint32_t nExpectedSize = ((this->table_begin_pointers[10] - this->table_begin_pointers[9]) / (Util::ByteAlign(k) / 8)) - 1;
+        if (this->C2.size() != nExpectedSize) {
+            throw std::invalid_argument("Invalid C2 size: " + std::to_string(this->C2.size()));
+        }
+    }
+
+    DiskProver(DiskProver&& other) noexcept
+    {
+        std::lock_guard<std::mutex> lock(other._mtx);
+        filename = std::move(other.filename);
+        memo = std::move(other.memo);
+        id = std::move(other.id);
+        k = other.k;
+        table_begin_pointers = std::move(other.table_begin_pointers);
+        C2 = std::move(other.C2);
+    }
+
     ~DiskProver()
     {
         std::lock_guard<std::mutex> l(_mtx);
@@ -127,9 +164,13 @@ public:
         Encoding::ANSFree(kC3R);
     }
 
-    const std::vector<uint8_t>& GetMemo() { return memo; }
+    const std::vector<uint8_t>& GetMemo() const { return memo; }
 
-    const std::vector<uint8_t>& GetId() { return id; }
+    const std::vector<uint8_t>& GetId() const { return id; }
+
+    const std::vector<uint64_t>& GetTableBeginPointers() const { return table_begin_pointers; }
+
+    const std::vector<uint64_t>& GetC2() const { return C2; }
 
     std::string GetFilename() const noexcept { return filename; }
 
