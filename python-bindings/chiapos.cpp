@@ -77,6 +77,15 @@ PYBIND11_MODULE(chiapos, m)
 
     py::class_<DiskProver>(m, "DiskProver")
         .def(py::init<const std::string &>())
+        .def(py::pickle(
+            [](const DiskProver &dp) { // __getstate__
+                return py::make_tuple(dp.GetFilename());
+                },
+                [](const py::tuple& t) { // __setstate__
+                if (t.size() != 1)
+                    throw std::runtime_error("Invalid state!");
+                return DiskProver(t[0].cast<std::string>());
+            }))
         .def(
             "get_memo",
             [](DiskProver &dp) {

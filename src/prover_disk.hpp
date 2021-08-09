@@ -117,6 +117,17 @@ public:
         delete[] c2_buf;
     }
 
+    DiskProver(DiskProver&& other) noexcept
+    {
+        std::lock_guard<std::mutex> lock(other._mtx);
+        filename = std::move(other.filename);
+        memo = std::move(other.memo);
+        id = std::move(other.id);
+        k = other.k;
+        table_begin_pointers = std::move(other.table_begin_pointers);
+        C2 = std::move(other.C2);
+    }
+
     ~DiskProver()
     {
         std::lock_guard<std::mutex> l(_mtx);
