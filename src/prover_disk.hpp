@@ -53,73 +53,14 @@ public:
     // will be used to find and seek to all seven tables, at the time of proving.
     explicit DiskProver(const std::string& filename) : id(kIdLen)
     {
-        struct plot_header header{};
         this->filename = filename;
-
-        std::ifstream disk_file(filename, std::ios::in | std::ios::binary);
-
-        if (!disk_file.is_open()) {
-            throw std::invalid_argument("Invalid file " + filename);
-        }
-        // 19 bytes  - "Proof of Space Plot" (utf-8)
-        // 32 bytes  - unique plot id
-        // 1 byte    - k
-        // 2 bytes   - format description length
-        // x bytes   - format description
-        // 2 bytes   - memo length
-        // x bytes   - memo
-
-        SafeRead(disk_file, (uint8_t*)&header, sizeof(header));
-        if (memcmp(header.magic, "Proof of Space Plot", sizeof(header.magic)) != 0)
-            throw std::invalid_argument("Invalid plot header magic");
-
-        uint16_t fmt_desc_len = Util::TwoBytesToInt(header.fmt_desc_len);
-
-        if (fmt_desc_len == kFormatDescription.size() &&
-            !memcmp(header.fmt_desc, kFormatDescription.c_str(), fmt_desc_len)) {
-            // OK
-        } else {
-            throw std::invalid_argument("Invalid plot file format");
-        }
-        memcpy(id.data(), header.id, sizeof(header.id));
-        this->k = header.k;
-        SafeSeek(disk_file, offsetof(struct plot_header, fmt_desc) + fmt_desc_len);
-
-        uint8_t size_buf[2];
-        SafeRead(disk_file, size_buf, 2);
-        memo.resize(Util::TwoBytesToInt(size_buf));
-        SafeRead(disk_file, memo.data(), memo.size());
-
-        this->table_begin_pointers = std::vector<uint64_t>(nTableBeginPointerCount, 0);
-        this->C2 = std::vector<uint64_t>();
-
-        uint8_t pointer_buf[8];
-        for (size_t i = 1; i < nTableBeginPointerCount; i++) {
-            SafeRead(disk_file, pointer_buf, 8);
-            this->table_begin_pointers[i] = Util::EightBytesToInt(pointer_buf);
-        }
-
-        SafeSeek(disk_file, table_begin_pointers[9]);
-
-        uint8_t c2_size = (Util::ByteAlign(k) / 8);
-        uint32_t c2_entries = (table_begin_pointers[10] - table_begin_pointers[9]) / c2_size;
-        if (c2_entries == 0 || c2_entries == 1) {
-            throw std::invalid_argument("Invalid C2 table size");
-        }
-
-        // The list of C2 entries is small enough to keep in memory. When proving, we can
-        // read from disk the C1 and C3 entries.
-        auto* c2_buf = new uint8_t[c2_size];
-        for (uint32_t i = 0; i < c2_entries - 1; i++) {
-            SafeRead(disk_file, c2_buf, c2_size);
-            this->C2.push_back(Bits(c2_buf, c2_size, c2_size * 8).Slice(0, k).GetValue());
-        }
-
-        delete[] c2_buf;
+        ReadData(id, memo, k, table_begin_pointers, C2);
+        fValid = true;
     }
 
     // Note: This constructor presumes the input parameter are valid for the provided file and does
-    // not validate the file itself.
+    // not validate the file itself. However, all methods of `DiskProver` should run `EnsureValid`
+    // first which handles the validation.
     DiskProver(std::string filename, std::vector<uint8_t> memo, std::vector<uint8_t> id, uint8_t k,
                std::vector<uint64_t> table_begin_pointers, std::vector<uint64_t> C2) :
         filename(std::move(filename)),
@@ -164,23 +105,62 @@ public:
         Encoding::ANSFree(kC3R);
     }
 
-    const std::vector<uint8_t>& GetMemo() const { return memo; }
+    const std::vector<uint8_t>& GetMemo() const { EnsureValid(); return memo; }
 
-    const std::vector<uint8_t>& GetId() const { return id; }
+    const std::vector<uint8_t>& GetId() const { EnsureValid(); return id; }
 
-    const std::vector<uint64_t>& GetTableBeginPointers() const { return table_begin_pointers; }
+    const std::vector<uint64_t>& GetTableBeginPointers() const { EnsureValid(); return table_begin_pointers; }
 
-    const std::vector<uint64_t>& GetC2() const { return C2; }
+    const std::vector<uint64_t>& GetC2() const { EnsureValid(); return C2; }
 
-    std::string GetFilename() const noexcept { return filename; }
+    std::string GetFilename() const { return filename; }
 
-    uint8_t GetSize() const noexcept { return k; }
+    uint8_t GetSize() const { EnsureValid(); return k; }
+
+    void EnsureValid() const
+    {
+        if (fValid) {
+            return;
+        }
+        uint8_t k_out;
+        std::vector<uint8_t> id_out, memo_out;
+        std::vector<uint64_t> table_begin_pointers_out, C2_out;
+        ReadData(id_out, memo_out, k_out, table_begin_pointers_out, C2_out);
+        if (id != id_out) {
+            throw std::invalid_argument("EnsureValid: Invalid id");
+        }
+        if (memo != memo_out) {
+            throw std::invalid_argument("EnsureValid: Invalid memo");
+        }
+        if (k != k_out) {
+            throw std::invalid_argument("EnsureValid: Invalid k");
+        }
+        if (table_begin_pointers != table_begin_pointers_out) {
+            throw std::invalid_argument("EnsureValid: Invalid table_begin_pointers");
+        }
+        if (C2 != C2_out) {
+            throw std::invalid_argument("EnsureValid: Invalid C2");
+        }
+        fValid = true;
+    }
+
+    bool IsValid() const
+    {
+        try {
+            EnsureValid();
+        } catch (...) {
+            return false;
+        }
+        return fValid;
+    }
 
     // Given a challenge, returns a quality string, which is sha256(challenge + 2 adjecent x
     // values), from the 64 value proof. Note that this is more efficient than fetching all 64 x
     // values, which are in different parts of the disk.
     std::vector<LargeBits> GetQualitiesForChallenge(const uint8_t* challenge)
     {
+        EnsureValid();
+
         std::vector<LargeBits> qualities;
 
         std::lock_guard<std::mutex> l(_mtx);
@@ -240,6 +220,8 @@ public:
     // if there are multiple.
     LargeBits GetFullProof(const uint8_t* challenge, uint32_t index, bool parallel_read = true)
     {
+        EnsureValid();
+
         LargeBits full_proof;
 
         std::lock_guard<std::mutex> l(_mtx);
@@ -276,13 +258,80 @@ public:
     }
 
 private:
+    mutable bool fValid{false};
     mutable std::mutex _mtx;
     std::string filename;
     std::vector<uint8_t> memo;
     std::vector<uint8_t> id;  // Unique plot id
-    uint8_t k;
+    uint8_t k{0};
     std::vector<uint64_t> table_begin_pointers;
     std::vector<uint64_t> C2;
+
+    void ReadData(std::vector<uint8_t>& id_in, std::vector<uint8_t>& memo_in, uint8_t& k_in, std::vector<uint64_t>& table_begin_pointers_in, std::vector<uint64_t>& C2_in) const
+    {
+        std::ifstream disk_file(filename, std::ios::in | std::ios::binary);
+
+        if (!disk_file.is_open()) {
+            throw std::invalid_argument("Invalid file " + filename);
+        }
+        struct plot_header header{};
+        // 19 bytes  - "Proof of Space Plot" (utf-8)
+        // 32 bytes  - unique plot id
+        // 1 byte    - k
+        // 2 bytes   - format description length
+        // x bytes   - format description
+        // 2 bytes   - memo length
+        // x bytes   - memo
+
+        SafeRead(disk_file, (uint8_t*)&header, sizeof(header));
+        if (memcmp(header.magic, "Proof of Space Plot", sizeof(header.magic)) != 0)
+            throw std::invalid_argument("Invalid plot header magic");
+
+        uint16_t fmt_desc_len = Util::TwoBytesToInt(header.fmt_desc_len);
+
+        if (fmt_desc_len == kFormatDescription.size() &&
+        !memcmp(header.fmt_desc, kFormatDescription.c_str(), fmt_desc_len)) {
+            // OK
+        } else {
+            throw std::invalid_argument("Invalid plot file format");
+        }
+        id_in = std::vector<uint8_t>(kIdLen);
+        memcpy(id_in.data(), header.id, sizeof(header.id));
+        k_in = header.k;
+        SafeSeek(disk_file, offsetof(struct plot_header, fmt_desc) + fmt_desc_len);
+
+        uint8_t size_buf[2];
+        SafeRead(disk_file, size_buf, 2);
+        memo_in.resize(Util::TwoBytesToInt(size_buf));
+        SafeRead(disk_file, memo_in.data(), memo_in.size());
+
+        table_begin_pointers_in = std::vector<uint64_t>(nTableBeginPointerCount, 0);
+        C2_in = std::vector<uint64_t>();
+
+        uint8_t pointer_buf[8];
+        for (size_t i = 1; i < nTableBeginPointerCount; i++) {
+            SafeRead(disk_file, pointer_buf, 8);
+            table_begin_pointers_in[i] = Util::EightBytesToInt(pointer_buf);
+        }
+
+        SafeSeek(disk_file, table_begin_pointers_in[9]);
+
+        uint8_t c2_size = (Util::ByteAlign(k_in) / 8);
+        uint32_t c2_entries = (table_begin_pointers_in[10] - table_begin_pointers_in[9]) / c2_size;
+        if (c2_entries == 0 || c2_entries == 1) {
+            throw std::invalid_argument("Invalid C2 table size");
+        }
+
+        // The list of C2 entries is small enough to keep in memory. When proving, we can
+        // read from disk the C1 and C3 entries.
+        auto* c2_buf = new uint8_t[c2_size];
+        for (uint32_t i = 0; i < c2_entries - 1; i++) {
+            SafeRead(disk_file, c2_buf, c2_size);
+            C2_in.push_back(Bits(c2_buf, c2_size, c2_size * 8).Slice(0, k).GetValue());
+        }
+
+        delete[] c2_buf;
+    }
 
     // Using this method instead of simply seeking will prevent segfaults that would arise when
     // continuing the process of looking up qualities.
@@ -322,6 +371,8 @@ private:
     // are looking for.
     uint128_t ReadLinePoint(std::ifstream& disk_file, uint8_t table_index, uint64_t position)
     {
+        EnsureValid();
+
         uint64_t park_index = position / kEntriesPerPark;
         uint32_t park_size_bits = EntrySizes::CalculateParkSize(k, table_index) * 8;
 
@@ -403,6 +454,8 @@ private:
         uint16_t encoded_size,
         uint64_t c1_index) const
     {
+        EnsureValid();
+
         std::vector<uint8_t> deltas =
             Encoding::ANSDecodeDeltas(bit_mask, encoded_size, kCheckpoint1Interval, kC3R);
         std::vector<uint64_t> p7_positions;
@@ -438,6 +491,8 @@ private:
     // Returns P7 table entries (which are positions into table P6), for a given challenge
     std::vector<uint64_t> GetP7Entries(std::ifstream& disk_file, const uint8_t* challenge)
     {
+        EnsureValid();
+
         if (C2.empty()) {
             return std::vector<uint64_t>();
         }
@@ -613,6 +668,8 @@ private:
     //     Where a < b is defined as:  max(b) > max(a) where a and b are lists of k bit elements
     std::vector<LargeBits> ReorderProof(const std::vector<Bits>& xs_input) const
     {
+        EnsureValid();
+
         F1Calculator f1(k, id.data());
         std::vector<std::pair<Bits, Bits> > results;
         LargeBits xs;
@@ -678,6 +735,8 @@ private:
     // recursively calling GetInputs for table 4.
     std::vector<Bits> GetInputs(uint64_t position, uint8_t depth, std::ifstream* disk_file = nullptr)
     {
+        EnsureValid();
+
         uint128_t line_point;
 
         if (!disk_file) {

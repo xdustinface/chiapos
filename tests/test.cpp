@@ -1068,10 +1068,18 @@ TEST_CASE("DiskProver")
         REQUIRE_THROWS(DiskProver(p1_filename, p1_memo, {}, p1_k, p1_pointers, p1_C2));
         REQUIRE_THROWS(DiskProver(p1_filename, p1_memo, std::vector<uint8_t>(kIdLen - 1, 0), p1_k, p1_pointers, p1_C2));
         REQUIRE_THROWS(DiskProver(p1_filename, p1_memo, std::vector<uint8_t>(kIdLen + 1, 0), p1_k, p1_pointers, p1_C2));
+        auto p1_id_invalid = p1_id;
+        p1_id_invalid.back()++;
+        DiskProver prover_invalid_id(p1_filename, p1_memo, p1_id_invalid, p1_k, p1_pointers, p1_C2);
+        REQUIRE_THROWS(prover_invalid_id.EnsureValid());
+        REQUIRE(!prover_invalid_id.IsValid());
         // Test "Invalid k"
         REQUIRE_THROWS(DiskProver(p1_filename, p1_memo, p1_id, 0, p1_pointers, p1_C2));
         REQUIRE_THROWS(DiskProver(p1_filename, p1_memo, p1_id, kMinPlotSize - 1, p1_pointers, p1_C2));
         REQUIRE_THROWS(DiskProver(p1_filename, p1_memo, p1_id, kMaxPlotSize + 1, p1_pointers, p1_C2));
+        DiskProver prover_invalid_k(p1_filename, p1_memo, p1_id, p1_k + 1, p1_pointers, p1_C2);
+        REQUIRE_THROWS(prover_invalid_k.EnsureValid());
+        REQUIRE(!prover_invalid_k.IsValid());
         // Test "Invalid table_begin_pointers size"
         REQUIRE_THROWS(DiskProver(p1_filename, p1_memo, p1_id, p1_k, {}, p1_C2));
         auto invalid_pointers = std::vector<uint64_t>(p1_pointers.begin(), p1_pointers.end() - 1);
@@ -1079,6 +1087,12 @@ TEST_CASE("DiskProver")
         invalid_pointers.push_back(p1_pointers.back());
         invalid_pointers.push_back(p1_pointers.back());
         REQUIRE_THROWS(DiskProver(p1_filename, p1_memo, p1_id, p1_k, invalid_pointers, p1_C2));
+        auto p1_pointers_invalid = p1_pointers;
+        p1_pointers_invalid[0] = p1_pointers[1];
+        p1_pointers_invalid[1] = p1_pointers[0];
+        DiskProver prover_invalid_pointers(p1_filename, p1_memo, p1_id, p1_k, p1_pointers_invalid, p1_C2);
+        REQUIRE_THROWS(prover_invalid_pointers.EnsureValid());
+        REQUIRE(!prover_invalid_pointers.IsValid());
         // Test "Invalid C2 size"
         REQUIRE_THROWS(DiskProver(p1_filename, p1_memo, p1_id, p1_k, {}, p1_C2));
         auto invalid_c2 = std::vector<uint64_t>(p1_C2.begin(), p1_C2.end() - 1);
@@ -1086,6 +1100,12 @@ TEST_CASE("DiskProver")
         invalid_c2.push_back(p1_C2.back());
         invalid_c2.push_back(p1_C2.back());
         REQUIRE_THROWS(DiskProver(p1_filename, p1_memo, p1_id, p1_k, p1_pointers, invalid_c2));
+        auto p1_C2_invalid = p1_C2;
+        p1_C2_invalid[0] = p1_C2[1];
+        p1_C2_invalid[1] = p1_C2[0];
+        DiskProver prover_invalid_C2(p1_filename, p1_memo, p1_id, p1_k, p1_pointers, p1_C2_invalid);
+        REQUIRE_THROWS(prover_invalid_C2.EnsureValid());
+        REQUIRE(!prover_invalid_C2.IsValid());
         REQUIRE(remove(filename.c_str()) == 0);
     }
 }
