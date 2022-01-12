@@ -77,6 +77,16 @@ PYBIND11_MODULE(chiapos, m)
 
     py::class_<DiskProver>(m, "DiskProver")
         .def(py::init<const std::string &>())
+        .def_static("from_bytes", [](const py::bytes &bytes) -> DiskProver {
+            py::buffer_info info(py::buffer(bytes).request());
+            auto data = reinterpret_cast<const uint8_t*>(info.ptr);
+            auto vecBytes = std::vector<uint8_t>(data, data + info.size);
+            return DiskProver(vecBytes);
+        })
+        .def("__bytes__", [](DiskProver &dp) {
+            std::vector<uint8_t> vecBytes = dp.ToBytes();
+            return py::bytes(reinterpret_cast<const char*>(vecBytes.data()), vecBytes.size());
+        })
         .def(
             "get_memo",
             [](DiskProver &dp) {
